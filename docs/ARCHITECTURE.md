@@ -946,6 +946,8 @@ Validation (`Settings::validate`): hotkeys parse; default provider exists and is
 
 Save is atomic: write `config.toml.tmp`, fsync, rename. Unknown keys are ignored on load. A file that fails to parse is renamed to `config.toml.broken-<unix>` and defaults are used, with a warning in the log and a one-time notice in Settings.
 
+Hotkey modifiers are normalized to the order Cmd, Alt, Ctrl, Shift; duplicate modifiers are rejected. Settings::load never validates; Core::update_settings always validates before saving. Broken-config warnings never include parser output.
+
 ### 14.3 state.db
 ```sql
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
