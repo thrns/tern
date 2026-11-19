@@ -9,5 +9,6 @@ publish = false
 path = "src/lib.rs"
 
 [dev-dependencies]
+log = "0.4.35"
 tern-core = { path = "../../crates/tern-core" }
 tern-mcp = { path = "../../crates/tern-mcp" }
