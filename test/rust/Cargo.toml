@@ -1,0 +1,13 @@
+[package]
+name = "tern-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dev-dependencies]
+tern-core = { path = "../../crates/tern-core" }
+tern-mcp = { path = "../../crates/tern-mcp" }

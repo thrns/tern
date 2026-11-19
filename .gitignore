@@ -1,0 +1,7 @@
+/target
+/dist
+/.build
+shell/macos/Sources/TernFFI/
+shell/macos/Sources/TernFFIC/
+.DS_Store
+*.profraw

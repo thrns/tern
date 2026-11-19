@@ -1,0 +1,16 @@
+pub mod calc;
+pub mod capture;
+pub mod core;
+pub mod error;
+pub mod index;
+pub mod logging;
+pub mod mcp_install;
+pub mod paths;
+pub mod platform;
+pub mod procenv;
+pub mod providers;
+pub mod redact;
+pub mod settings;
+pub mod state;
+pub mod uds;
+pub mod workspace;
