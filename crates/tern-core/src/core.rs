@@ -1,9 +1,13 @@
+use crate::calc::{self, CalcResult};
 use crate::error::{CoreError, ErrorKind};
 use crate::logging::{FileLogger, level_from_env};
 use crate::paths::TernPaths;
 use crate::settings::Settings;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::Duration;
+
+const CALC_DEADLINE: Duration = Duration::from_millis(50);
 
 pub struct Core {
     paths: TernPaths,
@@ -38,6 +42,10 @@ impl Core {
         settings.save(&self.paths.config_file())?;
         *current = settings;
         Ok(())
+    }
+
+    pub fn calc(&self, input: &str) -> Option<CalcResult> {
+        calc::evaluate(input, CALC_DEADLINE)
     }
 
     pub fn version() -> &'static str {

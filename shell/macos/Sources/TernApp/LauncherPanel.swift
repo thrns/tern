@@ -1,11 +1,13 @@
 import AppKit
 import OSLog
+import TernFFI
 
 @MainActor
 final class LauncherPanel: NSPanel {
     static let width: CGFloat = 680
     static let minimumHeight: CGFloat = 56
     static let cornerRadius: CGFloat = 14
+    static let maximumHeight: CGFloat = 520
     private static let topInsetFraction: CGFloat = 0.22
 
     private static let log = Logger(subsystem: "dev.tern.Tern", category: "panel")
@@ -13,9 +15,10 @@ final class LauncherPanel: NSPanel {
     private static let resignGraceInterval: Duration = .milliseconds(300)
 
     private var presentedAt: ContinuousClock.Instant?
-    private let launcherController = LauncherViewController()
+    private let launcherController: LauncherViewController
 
-    init() {
+    init(core: TernCore) {
+        launcherController = LauncherViewController(core: core)
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: Self.width, height: Self.minimumHeight),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
@@ -34,6 +37,7 @@ final class LauncherPanel: NSPanel {
         contentViewController = launcherController
         setContentSize(NSSize(width: Self.width, height: Self.minimumHeight))
         launcherController.onDismiss = { [weak self] in self?.hide() }
+        launcherController.onContentHeightChange = { [weak self] height in self?.resize(toContentHeight: height) }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(panelDidResignKey(_:)),
@@ -95,6 +99,13 @@ final class LauncherPanel: NSPanel {
         )
         guard !withinGrace else { return }
         hide()
+    }
+
+    private func resize(toContentHeight height: CGFloat) {
+        let clamped = min(max(height, Self.minimumHeight), Self.maximumHeight)
+        let topLeft = NSPoint(x: frame.minX, y: frame.maxY)
+        setContentSize(NSSize(width: Self.width, height: clamped))
+        setFrameTopLeftPoint(topLeft)
     }
 
     private func position() {

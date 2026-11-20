@@ -94,13 +94,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard BenchMode.isEnabled, let core = bridge?.core else { return }
         Task { @MainActor [weak self] in
             await BenchMode.run(core: core) { [weak self] in
-                self?.ensurePanel() ?? LauncherPanel()
+                self?.ensurePanel()
             }
         }
     }
 
-    private func ensurePanel() -> LauncherPanel {
-        let panel = launcherPanel ?? LauncherPanel()
+    private func ensurePanel() -> LauncherPanel? {
+        if let launcherPanel { return launcherPanel }
+        guard let core = bridge?.core else { return nil }
+        let panel = LauncherPanel(core: core)
         launcherPanel = panel
         return panel
     }
@@ -137,18 +139,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func prewarmPanel() {
-        guard launcherPanel == nil else { return }
-        let panel = LauncherPanel()
+        guard launcherPanel == nil, let panel = ensurePanel() else { return }
         panel.prewarm()
-        launcherPanel = panel
         Self.log.debug("panel prewarmed")
     }
 
     private func showPanel() {
         let started = ContinuousClock.now
         let wasPrewarmed = launcherPanel != nil
-        let panel = launcherPanel ?? LauncherPanel()
-        launcherPanel = panel
+        guard let panel = ensurePanel() else { return }
         guard !panel.isVisible else { return }
         panel.present()
         reportShown(panel, since: started, prewarmed: wasPrewarmed)
@@ -157,8 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func togglePanel() {
         let started = ContinuousClock.now
         let wasPrewarmed = launcherPanel != nil
-        let panel = launcherPanel ?? LauncherPanel()
-        launcherPanel = panel
+        guard let panel = ensurePanel() else { return }
         panel.toggle()
         guard panel.isVisible else { return }
         reportShown(panel, since: started, prewarmed: wasPrewarmed)

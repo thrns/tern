@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use tern_core::calc::CalcResult;
 use tern_core::core::Core;
 use tern_core::error::CoreError;
 use tern_core::settings as core_settings;
@@ -133,6 +134,21 @@ impl From<Settings> for core_settings::Settings {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct CalcOutput {
+    pub display: String,
+    pub is_approximate: bool,
+}
+
+impl From<CalcResult> for CalcOutput {
+    fn from(result: CalcResult) -> Self {
+        Self {
+            display: result.display,
+            is_approximate: result.is_approximate,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum FailureKind {
     NotInstalled,
@@ -227,6 +243,10 @@ impl TernCore {
 
     pub fn version(&self) -> String {
         Core::version().to_string()
+    }
+
+    pub fn calc(&self, input: String) -> Option<CalcOutput> {
+        self.inner.calc(&input).map(Into::into)
     }
 
     pub fn settings(&self) -> Settings {
