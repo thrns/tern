@@ -24,7 +24,7 @@ final class StatusItemController: NSObject {
             symbol.isTemplate = true
             button.image = symbol
         } else {
-            button.title = "Tern"
+            button.title = "T"
         }
     }
 
