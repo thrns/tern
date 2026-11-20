@@ -12,12 +12,12 @@ enum BenchMode {
         ProcessInfo.processInfo.environment["TERN_BENCH"] == "1"
     }
 
-    static func run(core: TernCore, panel: @MainActor @escaping () -> LauncherPanel) async {
+    static func run(core: TernCore, panel: @MainActor @escaping () -> LauncherPanel?) async {
         try? await Task.sleep(for: idleDelay)
         emit("idle")
         guard await waitForContinue() else { return finish() }
 
-        let launcher = panel()
+        guard let launcher = panel() else { return finish() }
         launcher.present()
         fillInput(of: launcher)
         emit("panel_shown")
