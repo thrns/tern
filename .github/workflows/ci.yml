@@ -37,6 +37,9 @@ jobs:
       - name: Swift build
         if: hashFiles('Package.swift') != ''
         run: swift build
+      - name: Swift tests
+        if: hashFiles('Package.swift') != ''
+        run: swift test
       - name: Bundle app
         if: hashFiles('Package.swift') != ''
         run: cargo xtask bundle
