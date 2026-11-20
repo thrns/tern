@@ -53,16 +53,19 @@ Budgets and metric are defined in `ARCHITECTURE.md` Section 17. Summary of the h
 4. It also measures `tern-mcp` (spawned directly with an MCP initialize and a `search_files` call), counts Tern-owned child processes after `ask_done`, and checks bundle size.
 5. Results go to `target/membench/report.json` and the GitHub job summary. Any limit breach fails CI.
 
+Limits are ratcheted to measured + margin; raising a limit requires a reason in the PR description. Architecture 17.2 limits are the absolute ceiling.
+
 Local quick check while developing: `footprint -p Tern` or Activity Monitor's Memory column (same metric).
 
 Leak hunting: run the ask loop 200 times with `TERN_BENCH_LOOP=200` (BenchMode option added in T-043) and compare idle before and after; use Instruments "Allocations" on the app and `dhat` (dev-only feature in `test/rust`) for Rust allocations.
 
 ## 6. Baseline results
 Filled in by T-043 on the first green run.
-| Scenario | Target | Limit | Measured | Date | Machine |
-|---|---|---|---|---|---|
-| app idle empty (pre-T-007, release) | 22 MB | 30 MB | 15 MB | 2026-11-20 | Apple M3 Pro |
-| app idle 100k files | 28 MB | 40 MB | | | |
-| panel shown | 35 MB | 50 MB | | | |
-| indexing peak 20k | 60 MB | 90 MB | | | |
-| tern-mcp after init | 6 MB | 10 MB | | | |
+| Scenario | Target | Arch ceiling | CI limit | Measured | Date | Machine |
+| --- | --- | --- | --- | --- | --- | --- |
+| app idle empty (release, prewarmed) | 15 MB | 30 MB | 20 MB | 13.7 MB | 2026-11-20 | Apple M3 Pro |
+| app idle 100k files | 28 MB | 40 MB | — | | | |
+| app_panel_shown | 18 MB | 50 MB | 25 MB | 14.3 MB | 2026-11-20 | Apple M3 Pro |
+| app_panel_hidden | 15 MB | 38 MB | 20 MB | 14.2 MB | 2026-11-20 | Apple M3 Pro |
+| indexing peak 20k | 60 MB | 90 MB | — | | | |
+| tern-mcp after init | 6 MB | 10 MB | — | | | |

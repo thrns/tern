@@ -7,6 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let log = Logger(subsystem: "dev.tern.Tern", category: "panel")
 
     private static let prewarmDelay: Duration = .seconds(3)
+    private static let bundleIdentifier = "dev.tern.Tern"
+    private static let showPanelNotification = Notification.Name("dev.tern.Tern.showPanel")
+    private static let handoffFlushDelay: Duration = .milliseconds(150)
 
     private var bridge: CoreBridge?
     private var statusItemController: StatusItemController?
@@ -14,6 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var launcherPanel: LauncherPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if hasRunningPeer() {
+            handOffToRunningInstance()
+            return
+        }
         do {
             bridge = try CoreBridge.start()
         } catch {
@@ -25,7 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController.onOpen = { [weak self] in self?.togglePanel() }
         self.statusItemController = statusItemController
         registerHotKeys()
+        observeShowPanelRequests()
         schedulePrewarm()
+        startBenchIfRequested()
     }
 
     func applicationShouldHandleReopen(
@@ -33,15 +42,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hasVisibleWindows flag: Bool
     ) -> Bool {
         Self.log.debug("reopen handler called, visible windows: \(flag, privacy: .public)")
+        revealPanel()
+        return false
+    }
+
+    private func revealPanel() {
         if let launcherPanel, launcherPanel.isVisible {
             launcherPanel.present()
-            return false
+            return
         }
         NSApp.activate()
         Task { @MainActor [weak self] in
             self?.showPanel()
         }
-        return false
+    }
+
+    private func hasRunningPeer() -> Bool {
+        guard !BenchMode.isEnabled else { return false }
+        let current = ProcessInfo.processInfo.processIdentifier
+        return NSRunningApplication
+            .runningApplications(withBundleIdentifier: Self.bundleIdentifier)
+            .contains { $0.processIdentifier != current }
+    }
+
+    private func handOffToRunningInstance() {
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.showPanelNotification,
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.handoffFlushDelay)
+            NSApp.terminate(nil)
+        }
+    }
+
+    private func observeShowPanelRequests() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: Self.showPanelNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.revealPanel()
+            }
+        }
+    }
+
+    private func startBenchIfRequested() {
+        guard BenchMode.isEnabled, let core = bridge?.core else { return }
+        Task { @MainActor [weak self] in
+            await BenchMode.run(core: core) { [weak self] in
+                self?.ensurePanel() ?? LauncherPanel()
+            }
+        }
+    }
+
+    private func ensurePanel() -> LauncherPanel {
+        let panel = launcherPanel ?? LauncherPanel()
+        launcherPanel = panel
+        return panel
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -69,7 +130,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func schedulePrewarm() {
-        guard ProcessInfo.processInfo.environment["TERN_BENCH"] != "1" else { return }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: Self.prewarmDelay)
             self?.prewarmPanel()

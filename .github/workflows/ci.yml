@@ -37,6 +37,9 @@ jobs:
       - name: Swift build
         if: hashFiles('Package.swift') != ''
         run: swift build
+      - name: Swift tests
+        if: hashFiles('Package.swift') != ''
+        run: swift test
       - name: Bundle app
         if: hashFiles('Package.swift') != ''
         run: cargo xtask bundle
@@ -44,6 +47,22 @@ jobs:
         run: cargo install cargo-deny --locked
       - name: License and advisory check
         run: cargo deny check licenses advisories
+
+  membench:
+    runs-on: macos-15
+    needs: macos
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
+      - name: Memory benchmark
+        run: cargo xtask membench
 
   linux-portability:
     runs-on: ubuntu-latest
