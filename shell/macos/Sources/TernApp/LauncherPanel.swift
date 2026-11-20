@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 @MainActor
 final class LauncherPanel: NSPanel {
@@ -7,6 +8,11 @@ final class LauncherPanel: NSPanel {
     static let cornerRadius: CGFloat = 14
     private static let topInsetFraction: CGFloat = 0.22
 
+    private static let log = Logger(subsystem: "dev.tern.Tern", category: "panel")
+
+    private static let resignGraceInterval: Duration = .milliseconds(300)
+
+    private var presentedAt: ContinuousClock.Instant?
     private let launcherController = LauncherViewController()
 
     init() {
@@ -50,13 +56,18 @@ final class LauncherPanel: NSPanel {
     }
 
     func present() {
+        presentedAt = .now
         position()
         makeKeyAndOrderFront(nil)
         launcherController.focusInput()
+        Self.log.debug(
+            "panel presented, key: \(self.isKeyWindow, privacy: .public), app active: \(NSApp.isActive, privacy: .public)"
+        )
     }
 
     func hide() {
         guard isVisible else { return }
+        Self.log.debug("panel hidden")
         orderOut(nil)
     }
 
@@ -65,6 +76,11 @@ final class LauncherPanel: NSPanel {
     }
 
     @objc private func panelDidResignKey(_ notification: Notification) {
+        let withinGrace = presentedAt.map { $0.duration(to: .now) < Self.resignGraceInterval } ?? false
+        Self.log.debug(
+            "panel resigned key, visible: \(self.isVisible, privacy: .public), ignored: \(withinGrace, privacy: .public), app active: \(NSApp.isActive, privacy: .public)"
+        )
+        guard !withinGrace else { return }
         hide()
     }
 

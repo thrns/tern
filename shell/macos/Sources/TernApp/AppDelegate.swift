@@ -29,7 +29,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ sender: NSApplication,
         hasVisibleWindows flag: Bool
     ) -> Bool {
-        showPanel()
+        Self.log.debug("reopen handler called, visible windows: \(flag, privacy: .public)")
+        if let launcherPanel, launcherPanel.isVisible {
+            launcherPanel.present()
+            return false
+        }
+        NSApp.activate()
+        Task { @MainActor [weak self] in
+            self?.showPanel()
+        }
         return false
     }
 
