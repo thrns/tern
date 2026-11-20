@@ -710,6 +710,7 @@ name = "tern-tests"
 version = "0.1.0"
 dependencies = [
  "log",
+ "serde_json",
  "tern-core",
  "tern-mcp",
 ]
