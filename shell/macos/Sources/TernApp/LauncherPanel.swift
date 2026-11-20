@@ -17,7 +17,7 @@ final class LauncherPanel: NSPanel {
     private var presentedAt: ContinuousClock.Instant?
     private let launcherController: LauncherViewController
 
-    init(core: TernCore) {
+    init(core: any LauncherCore) {
         launcherController = LauncherViewController(core: core)
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: Self.width, height: Self.minimumHeight),
