@@ -5,6 +5,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod membench;
+
 const USAGE: &str = "usage: xtask <build-core|bundle|membench|gen-corpus>";
 const TARGET_TRIPLE: &str = "aarch64-apple-darwin";
 const DEPLOYMENT_TARGET: &str = "14.0";
@@ -22,6 +24,7 @@ enum XtaskError {
     Io { context: String, source: io::Error },
     Command { command: String, status: String },
     Missing(PathBuf),
+    Membench(membench::MembenchError),
 }
 
 impl fmt::Display for XtaskError {
@@ -33,6 +36,7 @@ impl fmt::Display for XtaskError {
                 write!(f, "command failed ({status}): {command}")
             }
             XtaskError::Missing(path) => write!(f, "expected file not found: {}", path.display()),
+            XtaskError::Membench(error) => write!(f, "{error}"),
         }
     }
 }
@@ -47,6 +51,7 @@ fn main() -> ExitCode {
     let result = match args.first().map(String::as_str) {
         Some("build-core") => build_core(&args[1..]),
         Some("bundle") => bundle(&args[1..]),
+        Some("membench") => membench::run(&args[1..]),
         Some(command) => Err(XtaskError::Usage(format!(
             "unknown command '{command}'\n{USAGE}"
         ))),

@@ -1,0 +1,23 @@
+[[budget]]
+name = "app_idle_empty"
+phase = "idle"
+process = "app"
+metric = "footprint"
+target_mb = 22
+limit_mb = 30
+
+[[budget]]
+name = "app_panel_shown"
+phase = "panel_shown"
+process = "app"
+metric = "footprint"
+target_mb = 35
+limit_mb = 50
+
+[[budget]]
+name = "app_panel_hidden"
+phase = "panel_hidden"
+process = "app"
+metric = "footprint"
+target_mb = 26
+limit_mb = 38
