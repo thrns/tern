@@ -58,7 +58,14 @@ final class LauncherPanel: NSPanel {
     func prewarm() {
         contentView?.layoutSubtreeIfNeeded()
         launcherController.prepareInput(in: self)
+        alphaValue = 0
+        ignoresMouseEvents = true
+        position()
+        orderFrontRegardless()
         displayIfNeeded()
+        orderOut(nil)
+        ignoresMouseEvents = false
+        alphaValue = 1
     }
 
     func present() {
