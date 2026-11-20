@@ -58,7 +58,7 @@ Read `ARCHITECTURE.md` first. Every ticket here is written so that a model with 
 - **Files to create:** `.github/workflows/ci.yml`, `deny.toml`, `scripts/forbidden-flags.sh`
 - **Details:**
   - Job `macos` on `macos-15` (arm64): checkout, install stable toolchain, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test -p tern-tests`, `swift build` (skip with `if: hashFiles('Package.swift') != ''`), `cargo install cargo-deny --locked` then `cargo deny check licenses advisories`.
-  - Job `linux-portability` on `ubuntu-latest`: `cargo check -p tern-core -p tern-mcp`.
+  - Job `linux` on `ubuntu-latest`: `cargo check -p tern-core -p tern-mcp`, then `cargo test -p tern-tests`.
   - Job `guardrails` on `ubuntu-latest`: `bash scripts/forbidden-flags.sh`.
   - `scripts/forbidden-flags.sh`: `grep -RInE -- '--dangerously-skip-permissions|--yolo|bypassPermissions|danger-full-access|--full-auto' crates shell xtask` excluding nothing; exits 1 and prints matches if any found, else exits 0. Note: `ARCHITECTURE.md` mentions these strings but `docs/` is not scanned.
   - `deny.toml`: `[licenses] allow = [` list from Arch 4.4 `]`, `confidence-threshold = 0.9`; `[advisories] yanked = "deny"`; `[bans] multiple-versions = "warn"`.

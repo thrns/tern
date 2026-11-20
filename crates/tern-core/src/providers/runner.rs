@@ -29,7 +29,13 @@ const NOT_LOGGED_IN_PHRASES: [&str; 6] = [
     "401",
     "authentication",
 ];
-const RATE_LIMIT_MARKERS: [&str; 3] = ["rate limit", "429", "quota"];
+const RATE_LIMIT_PHRASES: [&str; 5] = [
+    "429",
+    "rate limit",
+    "rate limited",
+    "too many requests",
+    "quota",
+];
 
 type SharedParser = Arc<Mutex<Box<dyn EventParser>>>;
 type SharedTail = Arc<Mutex<Vec<u8>>>;
@@ -691,9 +697,9 @@ pub fn classify_failure(
             describe("provider is not logged in".to_string()),
         );
     }
-    if RATE_LIMIT_MARKERS
+    if RATE_LIMIT_PHRASES
         .iter()
-        .any(|marker| haystack.contains(marker))
+        .any(|phrase| contains_whole_phrase(&haystack, phrase))
     {
         return failed(
             FailureKind::RateLimited,
@@ -714,19 +720,16 @@ fn failed(kind: FailureKind, message: String) -> AgentEvent {
 fn normalize_for_matching(stderr_tail: &str, last_error: Option<&str>) -> String {
     format!("{stderr_tail}\n{}", last_error.unwrap_or_default())
         .to_lowercase()
+        .replace(['_', '-'], " ")
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn is_word_char(ch: char) -> bool {
-    ch.is_alphanumeric() || ch == '_'
 }
 
 fn contains_whole_phrase(haystack: &str, phrase: &str) -> bool {
     haystack.match_indices(phrase).any(|(start, matched)| {
         let before = haystack[..start].chars().next_back();
         let after = haystack[start + matched.len()..].chars().next();
-        !before.is_some_and(is_word_char) && !after.is_some_and(is_word_char)
+        !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
     })
 }

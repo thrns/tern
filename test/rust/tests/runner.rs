@@ -738,6 +738,25 @@ fn rate_limit_in_stderr_is_rate_limited() {
 }
 
 #[test]
+fn hyphenated_rate_limit_text_in_stderr_is_rate_limited() {
+    let events = run_script("echo 'error: Rate-Limited, retry later' >&2\nexit 1\n");
+    assert_eq!(failure_kind(&events), FailureKind::RateLimited);
+}
+
+#[test]
+fn underscored_login_text_in_stderr_is_not_logged_in() {
+    let events = run_script("echo 'fatal: login_failed' >&2\nexit 1\n");
+    assert_eq!(failure_kind(&events), FailureKind::NotLoggedIn);
+}
+
+#[test]
+fn digits_that_merely_contain_429_are_not_a_rate_limit() {
+    let events = run_script("echo 'processed 14290 rows before failing' >&2\nexit 1\n");
+    assert_eq!(failure_kind(&events), FailureKind::Unknown);
+    assert!(failure_message(&events).contains("14290"));
+}
+
+#[test]
 fn other_non_zero_exit_is_unknown_and_carries_the_stderr_tail() {
     let events = run_script("echo 'kaboom happened' >&2\nexit 3\n");
     assert_eq!(failure_kind(&events), FailureKind::Unknown);
@@ -1183,21 +1202,50 @@ fn classify_failure_matches_login_phrases_as_whole_words_ignoring_case() {
 }
 
 #[test]
+fn classify_failure_treats_underscore_and_hyphen_as_word_separators_for_login_text() {
+    let plain = exit_info(Some(1), None, false, false);
+    for stderr in [
+        "login_failed",
+        "ERR_LOGIN_REQUIRED",
+        "not_logged_in",
+        "NOT-LOGGED-IN",
+        "log-in required",
+        "log_in required",
+        "re-login needed",
+        "err_unauthorized",
+        "http-401",
+        "x_401_y",
+        "authentication_error",
+        "invalid-authentication",
+    ] {
+        assert_eq!(
+            classified_kind(&plain, stderr, None),
+            FailureKind::NotLoggedIn,
+            "{stderr}"
+        );
+    }
+}
+
+#[test]
 fn classify_failure_ignores_login_phrases_inside_other_words() {
     let plain = exit_info(Some(1), None, false, false);
     for stderr in [
         "auth failed",
+        "auth_failed",
         "AUTH error",
         "oauth token expired",
+        "oauth-token",
         "author unknown",
+        "author-name",
         "authenticated as bob",
         "unauthenticated",
         "HTTP 4010",
+        "id_4010",
         "port 14012",
         "id 401a",
         "loginctl exited",
+        "loginctl_exited",
         "blogin failed",
-        "login_failed",
         "backlog in progress",
         "Logged in as bob",
         "catalog in use",
@@ -1211,13 +1259,27 @@ fn classify_failure_ignores_login_phrases_inside_other_words() {
 }
 
 #[test]
-fn classify_failure_detects_rate_limits_after_login_text_is_ruled_out() {
+fn classify_failure_detects_rate_limits_as_whole_words_ignoring_case() {
     let plain = exit_info(Some(1), None, false, false);
     for stderr in [
         "rate limit exceeded",
-        "HTTP 429",
-        "quota exhausted",
         "Rate Limit",
+        "rate limited, retry later",
+        "Rate-Limited",
+        "rate-limit",
+        "rate_limit_exceeded",
+        "HTTP 429",
+        "error:429",
+        "(429)",
+        "429: slow down",
+        "x-429-y",
+        "Too Many Requests",
+        "too-many-requests",
+        "too_many_requests",
+        "quota exhausted",
+        "exceeded quota",
+        "quota_exceeded",
+        "monthly-quota",
     ] {
         assert_eq!(
             classified_kind(&plain, stderr, None),
@@ -1225,8 +1287,40 @@ fn classify_failure_detects_rate_limits_after_login_text_is_ruled_out() {
             "{stderr}"
         );
     }
+}
+
+#[test]
+fn classify_failure_ignores_rate_limit_phrases_inside_other_words_and_numbers() {
+    let plain = exit_info(Some(1), None, false, false);
+    for stderr in [
+        "processed 14290 rows",
+        "port 4290",
+        "id 429a",
+        "a429",
+        "429x",
+        "id_4290",
+        "quotation mark missing",
+        "inaccurate limit",
+        "accelerate limited",
+        "decorate-limited",
+    ] {
+        assert_eq!(
+            classified_kind(&plain, stderr, None),
+            FailureKind::Unknown,
+            "{stderr}"
+        );
+    }
+}
+
+#[test]
+fn classify_failure_prefers_login_text_over_rate_limit_text() {
+    let plain = exit_info(Some(1), None, false, false);
     assert_eq!(
         classified_kind(&plain, "HTTP 429 after HTTP 401", None),
+        FailureKind::NotLoggedIn
+    );
+    assert_eq!(
+        classified_kind(&plain, "rate-limited after login_failed", None),
         FailureKind::NotLoggedIn
     );
 }
