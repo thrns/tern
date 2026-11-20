@@ -63,7 +63,7 @@ Leak hunting: run the ask loop 200 times with `TERN_BENCH_LOOP=200` (BenchMode o
 Filled in by T-043 on the first green run.
 | Scenario | Target | Arch ceiling | CI limit | Measured | Date | Machine |
 | --- | --- | --- | --- | --- | --- | --- |
-| app idle empty (pre-T-007, release) | 15 MB | 30 MB | 20 MB | 15 MB | 2026-11-20 | Apple M3 Pro |
+| app idle empty (release, prewarmed) | 15 MB | 30 MB | 20 MB | 13.7 MB | 2026-11-20 | Apple M3 Pro |
 | app idle 100k files | 28 MB | 40 MB | — | | | |
 | app_panel_shown | 18 MB | 50 MB | 25 MB | 14.3 MB | 2026-11-20 | Apple M3 Pro |
 | app_panel_hidden | 15 MB | 38 MB | 20 MB | 14.2 MB | 2026-11-20 | Apple M3 Pro |
