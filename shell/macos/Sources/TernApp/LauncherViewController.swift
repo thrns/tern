@@ -38,6 +38,10 @@ final class LauncherViewController: NSViewController, NSTextFieldDelegate {
         view = background
     }
 
+    func prepareInput(in window: NSWindow) {
+        _ = window.fieldEditor(true, for: inputField)
+    }
+
     func focusInput() {
         view.window?.makeFirstResponder(inputField)
     }

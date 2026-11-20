@@ -6,6 +6,8 @@ import TernKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let log = Logger(subsystem: "dev.tern.Tern", category: "panel")
 
+    private static let prewarmDelay: Duration = .seconds(3)
+
     private var bridge: CoreBridge?
     private var statusItemController: StatusItemController?
     private var hotKeyCenter: HotKeyCenter?
@@ -23,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController.onOpen = { [weak self] in self?.togglePanel() }
         self.statusItemController = statusItemController
         registerHotKeys()
+        schedulePrewarm()
     }
 
     func applicationShouldHandleReopen(
@@ -65,25 +68,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func schedulePrewarm() {
+        guard ProcessInfo.processInfo.environment["TERN_BENCH"] != "1" else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: Self.prewarmDelay)
+            self?.prewarmPanel()
+        }
+    }
+
+    private func prewarmPanel() {
+        guard launcherPanel == nil else { return }
+        let panel = LauncherPanel()
+        panel.prewarm()
+        launcherPanel = panel
+        Self.log.debug("panel prewarmed")
+    }
+
     private func showPanel() {
+        let started = ContinuousClock.now
+        let wasPrewarmed = launcherPanel != nil
         let panel = launcherPanel ?? LauncherPanel()
         launcherPanel = panel
-        if !panel.isVisible {
-            panel.present()
-        }
+        guard !panel.isVisible else { return }
+        panel.present()
+        reportShown(panel, since: started, prewarmed: wasPrewarmed)
     }
 
     private func togglePanel() {
         let started = ContinuousClock.now
+        let wasPrewarmed = launcherPanel != nil
         let panel = launcherPanel ?? LauncherPanel()
         launcherPanel = panel
         panel.toggle()
         guard panel.isVisible else { return }
+        reportShown(panel, since: started, prewarmed: wasPrewarmed)
+    }
+
+    private func reportShown(
+        _ panel: LauncherPanel,
+        since started: ContinuousClock.Instant,
+        prewarmed: Bool
+    ) {
         let elapsed = started.duration(to: .now)
         let milliseconds = Double(elapsed.components.attoseconds) / 1e15
             + Double(elapsed.components.seconds) * 1000
         Self.log.info(
-            "panel shown in \(milliseconds, privacy: .public) ms, input focused: \(panel.isInputFocused, privacy: .public)"
+            "panel shown in \(milliseconds, privacy: .public) ms, prewarmed: \(prewarmed, privacy: .public), input focused: \(panel.isInputFocused, privacy: .public)"
         )
     }
 

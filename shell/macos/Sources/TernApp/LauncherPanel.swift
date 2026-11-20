@@ -20,7 +20,7 @@ final class LauncherPanel: NSPanel {
             contentRect: NSRect(x: 0, y: 0, width: Self.width, height: Self.minimumHeight),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
-            defer: true
+            defer: false
         )
         isFloatingPanel = true
         level = .floating
@@ -53,6 +53,12 @@ final class LauncherPanel: NSPanel {
         } else {
             present()
         }
+    }
+
+    func prewarm() {
+        contentView?.layoutSubtreeIfNeeded()
+        launcherController.prepareInput(in: self)
+        displayIfNeeded()
     }
 
     func present() {
