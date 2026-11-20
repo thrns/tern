@@ -31,9 +31,15 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         run: cargo test -p tern-tests
+      - name: Build core bindings
+        if: hashFiles('Package.swift') != ''
+        run: cargo xtask build-core
       - name: Swift build
         if: hashFiles('Package.swift') != ''
         run: swift build
+      - name: Bundle app
+        if: hashFiles('Package.swift') != ''
+        run: cargo xtask bundle
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked
       - name: License and advisory check

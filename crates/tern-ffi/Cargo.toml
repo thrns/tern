@@ -8,4 +8,15 @@ publish = false
 [lib]
 crate-type = ["staticlib", "cdylib"]
 
+[features]
+cli = ["uniffi/cli"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["cli"]
+
 [dependencies]
+thiserror = "2.0.21"
+tern-core = { path = "../tern-core" }
+uniffi = "0.32.2"
