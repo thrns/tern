@@ -128,3 +128,32 @@ fn evaluation_is_fast_across_repeated_runs() {
         "p95 was {p95:?}, expected under 20 ms"
     );
 }
+
+fn repeated_sum(terms: usize) -> String {
+    format!("1{}", "+1".repeat(terms - 1))
+}
+
+#[test]
+fn deeply_nested_parentheses_are_rejected_without_crashing() {
+    let input = format!("{}1{}", "(".repeat(300), ")".repeat(300));
+    assert_eq!(result(&input), None);
+}
+
+#[test]
+fn two_hundred_term_sum_is_rejected_by_operator_limit() {
+    assert_eq!(result(&repeated_sum(200)), None);
+}
+
+#[test]
+fn hundred_term_sum_evaluates() {
+    assert_eq!(result(&repeated_sum(100)), exact("100"));
+}
+
+#[test]
+fn hundred_term_sum_evaluates_from_small_stack_thread() {
+    let handle = std::thread::Builder::new()
+        .stack_size(512 * 1024)
+        .spawn(|| result(&repeated_sum(100)))
+        .expect("spawn small-stack thread");
+    assert_eq!(handle.join().expect("join"), exact("100"));
+}

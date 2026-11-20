@@ -845,6 +845,7 @@ Rules:
 3. Interrupt with a deadline (default 50 ms in the UI, 500 ms in MCP) via a struct implementing `fend_core::Interrupt`.
 4. `None` if fend errors, if the main result is empty, or if the result string equals the trimmed input.
 5. `is_approximate` is true when the result starts with `approx.`; `display` strips that prefix.
+6. Evaluation runs on a dedicated thread with an 8 MiB stack, because fend's parser recurses per term and GCD worker threads have 512 KiB stacks. Inputs with nesting depth over 50 or more than 150 operator characters are rejected before evaluation.
 
 ---
 
