@@ -510,7 +510,7 @@ pub enum AgentEvent {
 2. Unknown `type` values are ignored. Missing optional fields are ignored. Never fail a turn because of an unknown field.
 3. A line longer than 4 MB is dropped with a `Warning` (runner enforces).
 4. `TextFinal` always replaces whatever deltas were shown. If no final text was found, the runner uses the concatenated deltas.
-5. `finish` rules: if the parser already emitted `Failed`, emit nothing more. Else if exit code is 0, emit `Completed`. Else classify `stderr_tail` plus the last error event: contains "login", "auth", "not logged in", "unauthorized" or "401" maps to `NotLoggedIn`; "rate limit", "429" or "quota" maps to `RateLimited`; `timed_out` maps to `Timeout`; `cancelled` maps to `Cancelled`; a signal maps to `ProcessCrashed`; otherwise `Unknown` with the last 500 chars of stderr.
+5. `finish` rules: if the parser already emitted `Failed`, emit nothing more. Otherwise the first rule that applies wins: `cancelled` gives `Failed` with `Cancelled`; `timed_out` gives `Timeout`; exit code 0 gives `Completed`; a signal gives `ProcessCrashed`; `stderr_tail` plus the last error event matched case-insensitively on whole words (a match must not touch a letter, digit or underscore) against "not logged in", "login", "log in", "unauthorized", "401" or "authentication" gives `NotLoggedIn` (a bare "auth" does not match); the same text containing "rate limit", "429" or "quota" gives `RateLimited`; anything else gives `Unknown` with the last 500 chars of stderr.
 
 ### 8.3 System prompt
 File `<home>/prompts/system.md`, written from an embedded default on startup if missing, user-editable. Default text:

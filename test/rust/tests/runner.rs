@@ -752,9 +752,66 @@ fn non_zero_exit_without_stderr_names_the_exit_code() {
 }
 
 #[test]
+fn bare_auth_in_stderr_is_not_mistaken_for_a_login_problem() {
+    let events = run_script("echo 'oauth refresh failed for author' >&2\nexit 1\n");
+    assert_eq!(failure_kind(&events), FailureKind::Unknown);
+    assert!(failure_message(&events).contains("oauth refresh failed"));
+}
+
+#[test]
 fn death_by_signal_is_process_crashed() {
     let events = run_script("echo delta:partial\nkill -9 $$\n");
     assert_eq!(failure_kind(&events), FailureKind::ProcessCrashed);
+    assert_one_terminal_event_at_end(&events);
+}
+
+#[test]
+fn death_by_signal_with_login_text_in_stderr_is_still_process_crashed() {
+    let events = run_script("echo 'HTTP 401, please login' >&2\nkill -9 $$\n");
+    assert_eq!(failure_kind(&events), FailureKind::ProcessCrashed);
+    assert_one_terminal_event_at_end(&events);
+}
+
+#[test]
+fn timeout_with_login_text_in_stderr_still_reports_timeout() {
+    let scratch = Scratch::new("timeout-login");
+    let mut short = limits();
+    short.idle = Duration::from_millis(400);
+    let probe = Probe::default();
+    let events = run(
+        scratch.spec(
+            "echo 'Not logged in, please login' >&2\necho delta:start\nexec sleep 60\n",
+            &[],
+        ),
+        ScriptParser::probed(FinishMode::Classify, &probe),
+        short,
+    );
+    let tail = probe
+        .stderr_tail
+        .lock()
+        .expect("probe lock")
+        .clone()
+        .expect("finish was called");
+    assert!(tail.contains("please login"), "stderr was {tail:?}");
+    assert_eq!(failure_kind(&events), FailureKind::Timeout);
+    assert_one_terminal_event_at_end(&events);
+}
+
+#[test]
+fn cancel_with_login_text_in_stderr_still_reports_cancelled() {
+    let scratch = Scratch::new("cancel-login");
+    let mut session = Session::start(
+        scratch.spec(
+            "echo 'HTTP 401 unauthorized' >&2\necho delta:ready\nexec sleep 60\n",
+            &[],
+        ),
+        ScriptParser::classifying(),
+        limits(),
+    );
+    session.wait_for(|event| matches!(event, AgentEvent::TextDelta { .. }));
+    session.cancel();
+    let events = session.finish();
+    assert_eq!(failure_kind(&events), FailureKind::Cancelled);
     assert_one_terminal_event_at_end(&events);
 }
 
@@ -1011,38 +1068,151 @@ fn chatty_output_is_delivered_completely_and_in_order_under_back_pressure() {
     assert_eq!(tail[1], AgentEvent::Completed);
 }
 
-#[test]
-fn classify_failure_follows_the_documented_rules() {
-    let exit =
-        |code: Option<i32>, signal: Option<i32>, timed_out: bool, cancelled: bool| ExitInfo {
-            code,
-            signal,
-            timed_out,
-            cancelled,
-        };
-    let kind = |event: AgentEvent| match event {
+fn exit_info(code: Option<i32>, signal: Option<i32>, timed_out: bool, cancelled: bool) -> ExitInfo {
+    ExitInfo {
+        code,
+        signal,
+        timed_out,
+        cancelled,
+    }
+}
+
+fn classified_kind(exit: &ExitInfo, stderr: &str, last_error: Option<&str>) -> FailureKind {
+    match classify_failure(exit, stderr, last_error) {
         AgentEvent::Failed { kind, .. } => kind,
-        other => panic!("expected Failed, got {other:?}"),
-    };
-    let plain = exit(Some(1), None, false, false);
+        other => panic!("expected Failed for {stderr:?} / {last_error:?}, got {other:?}"),
+    }
+}
+
+#[test]
+fn classify_failure_completes_only_on_a_clean_exit() {
     assert_eq!(
-        classify_failure(&exit(Some(0), None, false, false), "noise", None),
+        classify_failure(&exit_info(Some(0), None, false, false), "noise", None),
         AgentEvent::Completed
     );
-    for stderr in [
-        "Error: Not logged in",
-        "please run /login first",
-        "Unauthorized",
-        "authentication failed",
-        "HTTP 401",
-        "NOT LOGGED IN",
+    assert_eq!(
+        classified_kind(&exit_info(Some(0), None, false, true), "", None),
+        FailureKind::Cancelled
+    );
+    assert_eq!(
+        classified_kind(&exit_info(Some(0), None, true, false), "", None),
+        FailureKind::Timeout
+    );
+}
+
+#[test]
+fn classify_failure_cancelled_wins_over_every_other_signal() {
+    let noisy = "HTTP 401 not logged in please login, 429 rate limit";
+    for exit in [
+        exit_info(None, Some(2), false, true),
+        exit_info(Some(1), None, false, true),
+        exit_info(None, Some(9), true, true),
     ] {
         assert_eq!(
-            kind(classify_failure(&plain, stderr, None)),
+            classified_kind(&exit, noisy, Some("401 unauthorized")),
+            FailureKind::Cancelled
+        );
+    }
+}
+
+#[test]
+fn classify_failure_timeout_wins_over_signal_and_text() {
+    let timed_out = exit_info(None, Some(15), true, false);
+    for stderr in [
+        "",
+        "waiting for login",
+        "Please log in to continue",
+        "HTTP 401",
+        "429 rate limit",
+    ] {
+        assert_eq!(
+            classified_kind(&timed_out, stderr, None),
+            FailureKind::Timeout,
+            "{stderr}"
+        );
+    }
+    assert_eq!(
+        classified_kind(&timed_out, "", Some("Not logged in")),
+        FailureKind::Timeout
+    );
+}
+
+#[test]
+fn classify_failure_signal_wins_over_text() {
+    let crashed = exit_info(None, Some(11), false, false);
+    for stderr in ["", "HTTP 401", "Not logged in", "429 rate limit"] {
+        assert_eq!(
+            classified_kind(&crashed, stderr, None),
+            FailureKind::ProcessCrashed,
+            "{stderr}"
+        );
+    }
+    assert_eq!(
+        classified_kind(&crashed, "", Some("please login")),
+        FailureKind::ProcessCrashed
+    );
+}
+
+#[test]
+fn classify_failure_matches_login_phrases_as_whole_words_ignoring_case() {
+    let plain = exit_info(Some(1), None, false, false);
+    for stderr in [
+        "Error: Not logged in",
+        "NOT LOGGED IN",
+        "please run /login first",
+        "Login required",
+        "login: failed",
+        "please log in",
+        "Please LOG IN again",
+        "please log   in",
+        "please log\nin",
+        "Unauthorized",
+        "error:unauthorized",
+        "HTTP 401",
+        "status (401)",
+        "401: bad key",
+        "authentication failed",
+        "Authentication required",
+    ] {
+        assert_eq!(
+            classified_kind(&plain, stderr, None),
             FailureKind::NotLoggedIn,
             "{stderr}"
         );
     }
+}
+
+#[test]
+fn classify_failure_ignores_login_phrases_inside_other_words() {
+    let plain = exit_info(Some(1), None, false, false);
+    for stderr in [
+        "auth failed",
+        "AUTH error",
+        "oauth token expired",
+        "author unknown",
+        "authenticated as bob",
+        "unauthenticated",
+        "HTTP 4010",
+        "port 14012",
+        "id 401a",
+        "loginctl exited",
+        "blogin failed",
+        "login_failed",
+        "backlog in progress",
+        "Logged in as bob",
+        "catalog in use",
+    ] {
+        assert_eq!(
+            classified_kind(&plain, stderr, None),
+            FailureKind::Unknown,
+            "{stderr}"
+        );
+    }
+}
+
+#[test]
+fn classify_failure_detects_rate_limits_after_login_text_is_ruled_out() {
+    let plain = exit_info(Some(1), None, false, false);
     for stderr in [
         "rate limit exceeded",
         "HTTP 429",
@@ -1050,57 +1220,20 @@ fn classify_failure_follows_the_documented_rules() {
         "Rate Limit",
     ] {
         assert_eq!(
-            kind(classify_failure(&plain, stderr, None)),
+            classified_kind(&plain, stderr, None),
             FailureKind::RateLimited,
             "{stderr}"
         );
     }
     assert_eq!(
-        kind(classify_failure(
-            &exit(None, Some(15), true, false),
-            "",
-            None
-        )),
-        FailureKind::Timeout
-    );
-    assert_eq!(
-        kind(classify_failure(
-            &exit(None, Some(2), false, true),
-            "",
-            None
-        )),
-        FailureKind::Cancelled
-    );
-    assert_eq!(
-        kind(classify_failure(
-            &exit(Some(0), None, false, true),
-            "",
-            None
-        )),
-        FailureKind::Cancelled
-    );
-    assert_eq!(
-        kind(classify_failure(
-            &exit(None, Some(11), false, false),
-            "",
-            None
-        )),
-        FailureKind::ProcessCrashed
-    );
-    assert_eq!(
-        kind(classify_failure(&plain, "something else", None)),
-        FailureKind::Unknown
+        classified_kind(&plain, "HTTP 429 after HTTP 401", None),
+        FailureKind::NotLoggedIn
     );
 }
 
 #[test]
-fn classify_failure_uses_the_last_error_and_orders_rules_as_documented() {
-    let plain = ExitInfo {
-        code: Some(1),
-        signal: None,
-        timed_out: false,
-        cancelled: false,
-    };
+fn classify_failure_reads_the_last_error_as_well_as_stderr() {
+    let plain = exit_info(Some(1), None, false, false);
     match classify_failure(&plain, "", Some("API error 401: bad key")) {
         AgentEvent::Failed { kind, message } => {
             assert_eq!(kind, FailureKind::NotLoggedIn);
@@ -1108,20 +1241,18 @@ fn classify_failure_uses_the_last_error_and_orders_rules_as_documented() {
         }
         other => panic!("{other:?}"),
     }
-    let timed_out = ExitInfo {
-        code: None,
-        signal: Some(15),
-        timed_out: true,
-        cancelled: false,
-    };
-    match classify_failure(&timed_out, "waiting for login", None) {
-        AgentEvent::Failed { kind, .. } => assert_eq!(kind, FailureKind::NotLoggedIn),
-        other => panic!("{other:?}"),
-    }
-    match classify_failure(&timed_out, "", None) {
-        AgentEvent::Failed { kind, .. } => assert_eq!(kind, FailureKind::Timeout),
-        other => panic!("{other:?}"),
-    }
+    assert_eq!(
+        classified_kind(&plain, "", Some("429 slow down")),
+        FailureKind::RateLimited
+    );
+    assert_eq!(
+        classified_kind(&plain, "plain noise", Some("Please log in")),
+        FailureKind::NotLoggedIn
+    );
+    assert_eq!(
+        classified_kind(&plain, "something else", None),
+        FailureKind::Unknown
+    );
 }
 
 #[test]

@@ -21,7 +21,14 @@ const STDERR_CHUNK_BYTES: usize = 4096;
 const LINE_BUFFER_KEEP_BYTES: usize = 64 * 1024;
 const FAILURE_DETAIL_CHARS: usize = 500;
 const TRUNCATION_MARKER: &str = "\n\n[truncated]";
-const NOT_LOGGED_IN_MARKERS: [&str; 5] = ["login", "auth", "not logged in", "unauthorized", "401"];
+const NOT_LOGGED_IN_PHRASES: [&str; 6] = [
+    "not logged in",
+    "login",
+    "log in",
+    "unauthorized",
+    "401",
+    "authentication",
+];
 const RATE_LIMIT_MARKERS: [&str; 3] = ["rate limit", "429", "quota"];
 
 type SharedParser = Arc<Mutex<Box<dyn EventParser>>>;
@@ -646,11 +653,15 @@ pub fn classify_failure(
     stderr_tail: &str,
     last_error: Option<&str>,
 ) -> AgentEvent {
-    if exit.code == Some(0) && !exit.timed_out && !exit.cancelled {
+    if exit.cancelled {
+        return failed(FailureKind::Cancelled, "turn cancelled".to_string());
+    }
+    if exit.timed_out {
+        return failed(FailureKind::Timeout, "turn timed out".to_string());
+    }
+    if exit.code == Some(0) {
         return AgentEvent::Completed;
     }
-    let haystack = format!("{stderr_tail}\n{}", last_error.unwrap_or_default()).to_lowercase();
-    let mentions = |markers: &[&str]| markers.iter().any(|marker| haystack.contains(marker));
     let stderr_detail = last_chars(stderr_tail.trim(), FAILURE_DETAIL_CHARS);
     let detail = if stderr_detail.is_empty() {
         last_chars(last_error.unwrap_or_default().trim(), FAILURE_DETAIL_CHARS)
@@ -664,31 +675,58 @@ pub fn classify_failure(
             detail.to_string()
         }
     };
-    let (kind, message) = if mentions(&NOT_LOGGED_IN_MARKERS) {
-        (
-            FailureKind::NotLoggedIn,
-            describe("provider is not logged in".to_string()),
-        )
-    } else if mentions(&RATE_LIMIT_MARKERS) {
-        (
-            FailureKind::RateLimited,
-            describe("provider rate limit reached".to_string()),
-        )
-    } else if exit.timed_out {
-        (FailureKind::Timeout, "turn timed out".to_string())
-    } else if exit.cancelled {
-        (FailureKind::Cancelled, "turn cancelled".to_string())
-    } else if let Some(signal) = exit.signal {
-        (
+    if let Some(signal) = exit.signal {
+        return failed(
             FailureKind::ProcessCrashed,
             describe(format!("provider process killed by signal {signal}")),
-        )
-    } else {
-        let fallback = match exit.code {
-            Some(code) => format!("provider exited with code {code}"),
-            None => "provider exited abnormally".to_string(),
-        };
-        (FailureKind::Unknown, describe(fallback))
+        );
+    }
+    let haystack = normalize_for_matching(stderr_tail, last_error);
+    if NOT_LOGGED_IN_PHRASES
+        .iter()
+        .any(|phrase| contains_whole_phrase(&haystack, phrase))
+    {
+        return failed(
+            FailureKind::NotLoggedIn,
+            describe("provider is not logged in".to_string()),
+        );
+    }
+    if RATE_LIMIT_MARKERS
+        .iter()
+        .any(|marker| haystack.contains(marker))
+    {
+        return failed(
+            FailureKind::RateLimited,
+            describe("provider rate limit reached".to_string()),
+        );
+    }
+    let fallback = match exit.code {
+        Some(code) => format!("provider exited with code {code}"),
+        None => "provider exited abnormally".to_string(),
     };
+    failed(FailureKind::Unknown, describe(fallback))
+}
+
+fn failed(kind: FailureKind, message: String) -> AgentEvent {
     AgentEvent::Failed { kind, message }
+}
+
+fn normalize_for_matching(stderr_tail: &str, last_error: Option<&str>) -> String {
+    format!("{stderr_tail}\n{}", last_error.unwrap_or_default())
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn is_word_char(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
+fn contains_whole_phrase(haystack: &str, phrase: &str) -> bool {
+    haystack.match_indices(phrase).any(|(start, matched)| {
+        let before = haystack[..start].chars().next_back();
+        let after = haystack[start + matched.len()..].chars().next();
+        !before.is_some_and(is_word_char) && !after.is_some_and(is_word_char)
+    })
 }
