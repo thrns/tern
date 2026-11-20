@@ -64,7 +64,7 @@ jobs:
       - name: Memory benchmark
         run: cargo xtask membench
 
-  linux-portability:
+  linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -78,6 +78,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
       - name: Check portable crates
         run: cargo check -p tern-core -p tern-mcp
+      - name: Test
+        run: cargo test -p tern-tests
 
   guardrails:
     runs-on: ubuntu-latest
