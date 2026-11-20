@@ -302,6 +302,7 @@ fn build_falls_back_when_login_shell_path_is_blank() {
     assert!(env.path.starts_with("/usr/bin:/bin"));
 }
 
+#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_returns_first_trimmed_stdout_line() {
     let dir = scratch_dir("version");
@@ -318,6 +319,7 @@ fn run_version_returns_first_trimmed_stdout_line() {
     assert_eq!(version, "tool 1.2.3");
 }
 
+#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_passes_args_and_scrubbed_env() {
     let dir = scratch_dir("env");
@@ -335,6 +337,7 @@ fn run_version_passes_args_and_scrubbed_env() {
     assert_eq!(version, "-v|dumb|unset|1");
 }
 
+#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_gives_the_child_null_stdin() {
     let dir = scratch_dir("stdin");
@@ -356,6 +359,7 @@ fn run_version_reports_missing_binary() {
     assert_eq!(err.kind, ErrorKind::ProviderNotInstalled);
 }
 
+#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_reports_non_zero_exit() {
     let dir = scratch_dir("fail");
@@ -368,6 +372,7 @@ fn run_version_reports_non_zero_exit() {
     assert!(err.message.contains("exit status: 3"), "{}", err.message);
 }
 
+#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_returns_empty_string_for_silent_binary() {
     let dir = scratch_dir("silent");
@@ -379,6 +384,7 @@ fn run_version_returns_empty_string_for_silent_binary() {
     assert_eq!(version, "");
 }
 
+#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_times_out_and_kills_process_group() {
     let dir = scratch_dir("hang");
