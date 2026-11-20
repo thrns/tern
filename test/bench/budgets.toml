@@ -3,7 +3,7 @@ name = "app_idle_empty"
 phase = "idle"
 process = "app"
 metric = "footprint"
-target_mb = 22
+target_mb = 15
 limit_mb = 20
 
 [[budget]]
@@ -11,7 +11,7 @@ name = "app_panel_shown"
 phase = "panel_shown"
 process = "app"
 metric = "footprint"
-target_mb = 35
+target_mb = 18
 limit_mb = 25
 
 [[budget]]
@@ -19,5 +19,5 @@ name = "app_panel_hidden"
 phase = "panel_hidden"
 process = "app"
 metric = "footprint"
-target_mb = 26
+target_mb = 15
 limit_mb = 20
