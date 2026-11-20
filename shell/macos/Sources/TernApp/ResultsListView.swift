@@ -19,6 +19,10 @@ final class ResultsListView: NSScrollView, NSTableViewDataSource, NSTableViewDel
         min(CGFloat(rows.count) * Self.rowHeight, Self.maximumHeight)
     }
 
+    var rowCount: Int {
+        rows.count
+    }
+
     var firstCalcDisplay: String? {
         guard case let .calc(display, _)? = rows.first else { return nil }
         return display

@@ -32,7 +32,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TernKitTests",
-            dependencies: ["TernKit"],
+            dependencies: ["TernKit", "TernApp", "TernFFI"],
             path: "test/swift"
         ),
     ]

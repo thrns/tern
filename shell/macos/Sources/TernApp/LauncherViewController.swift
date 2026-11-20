@@ -2,6 +2,12 @@ import AppKit
 import TernFFI
 import TernKit
 
+protocol LauncherCore: Sendable {
+    func calc(input: String) -> CalcOutput?
+}
+
+extension TernCore: LauncherCore {}
+
 @MainActor
 final class LauncherViewController: NSViewController, NSTextFieldDelegate {
     fileprivate static let debounceDelay: TimeInterval = 0.06
@@ -10,16 +16,17 @@ final class LauncherViewController: NSViewController, NSTextFieldDelegate {
     var onDismiss: (@MainActor () -> Void)?
     var onContentHeightChange: (@MainActor (CGFloat) -> Void)?
 
-    private let core: TernCore
-    private let inputField = NSTextField()
-    private let resultsView = ResultsListView()
+    let inputField = NSTextField()
+    let resultsView = ResultsListView()
+
+    private let core: any LauncherCore
     private let calcDebouncer = Debouncer(delay: LauncherViewController.debounceDelay, queue: LauncherViewController.coreQueue)
     private var generation: UInt = 0
     private var resultsHeightConstraint: NSLayoutConstraint?
 
     private static let inputTopInset: CGFloat = 15
 
-    init(core: TernCore) {
+    init(core: any LauncherCore) {
         self.core = core
         super.init(nibName: nil, bundle: nil)
     }
