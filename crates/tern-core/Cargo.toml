@@ -6,6 +6,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+crossbeam-channel = "0.5.17"
 fend-core = { version = "=1.5.9", default-features = false }
 libc = "0.2.191"
 log = "0.4.35"
