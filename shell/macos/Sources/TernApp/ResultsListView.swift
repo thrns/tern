@@ -39,6 +39,7 @@ final class ResultsListView: NSScrollView, NSTableViewDataSource, NSTableViewDel
         table.delegate = self
         documentView = table
         drawsBackground = false
+        contentView.drawsBackground = false
         hasVerticalScroller = false
         autohidesScrollers = true
         borderType = .noBorder

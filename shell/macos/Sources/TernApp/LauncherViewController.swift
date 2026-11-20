@@ -15,6 +15,9 @@ final class LauncherViewController: NSViewController, NSTextFieldDelegate {
     private let resultsView = ResultsListView()
     private let calcDebouncer = Debouncer(delay: LauncherViewController.debounceDelay, queue: LauncherViewController.coreQueue)
     private var generation: UInt = 0
+    private var resultsHeightConstraint: NSLayoutConstraint?
+
+    private static let inputTopInset: CGFloat = 15
 
     init(core: TernCore) {
         self.core = core
@@ -53,20 +56,16 @@ final class LauncherViewController: NSViewController, NSTextFieldDelegate {
         resultsView.isHidden = true
         background.addSubview(resultsView)
 
+        let resultsHeight = resultsView.heightAnchor.constraint(equalToConstant: 0)
+        resultsHeightConstraint = resultsHeight
         NSLayoutConstraint.activate([
             inputField.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 18),
             inputField.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -18),
-            inputField.centerYAnchor.constraint(
-                equalTo: background.topAnchor,
-                constant: -LauncherPanel.minimumHeight / 2
-            ),
+            inputField.topAnchor.constraint(equalTo: background.topAnchor, constant: Self.inputTopInset),
             resultsView.leadingAnchor.constraint(equalTo: background.leadingAnchor),
             resultsView.trailingAnchor.constraint(equalTo: background.trailingAnchor),
             resultsView.bottomAnchor.constraint(equalTo: background.bottomAnchor),
-            resultsView.topAnchor.constraint(
-                equalTo: background.topAnchor,
-                constant: -LauncherPanel.minimumHeight
-            ),
+            resultsHeight,
         ])
         view = background
     }
@@ -135,6 +134,7 @@ final class LauncherViewController: NSViewController, NSTextFieldDelegate {
         let rows: [ResultRow] = output.map { [.calc(display: $0.display, approximate: $0.isApproximate)] } ?? []
         resultsView.update(rows)
         resultsView.isHidden = rows.isEmpty
+        resultsHeightConstraint?.constant = resultsView.contentHeight
         onContentHeightChange?(LauncherPanel.minimumHeight + resultsView.contentHeight)
     }
 
