@@ -85,3 +85,5 @@ jobs:
       - uses: actions/checkout@v7
       - name: Forbidden flags
         run: bash scripts/forbidden-flags.sh
+      - name: Shellcheck
+        run: shellcheck scripts/capture-fixtures.sh
