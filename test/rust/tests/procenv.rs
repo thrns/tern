@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::io::Write;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -9,6 +10,7 @@ use tern_core::platform::{CaptureInfo, CaptureMode, Platform};
 use tern_core::procenv::ProcEnv;
 
 static SCRATCH_COUNTER: AtomicU32 = AtomicU32::new(0);
+static SPAWN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 struct FakePlatform {
     shell_path: Result<String, ()>,
@@ -57,7 +59,9 @@ fn scratch_dir(label: &str) -> PathBuf {
 
 fn write_file(dir: &Path, name: &str, body: &str, mode: u32) -> PathBuf {
     let path = dir.join(name);
-    std::fs::write(&path, body).expect("write file");
+    let mut file = std::fs::File::create(&path).expect("create file");
+    file.write_all(body.as_bytes()).expect("write file");
+    drop(file);
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).expect("chmod");
     path
 }
@@ -302,9 +306,9 @@ fn build_falls_back_when_login_shell_path_is_blank() {
     assert!(env.path.starts_with("/usr/bin:/bin"));
 }
 
-#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_returns_first_trimmed_stdout_line() {
+    let _spawn_guard = SPAWN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = scratch_dir("version");
     let script = write_file(
         &dir,
@@ -319,9 +323,9 @@ fn run_version_returns_first_trimmed_stdout_line() {
     assert_eq!(version, "tool 1.2.3");
 }
 
-#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_passes_args_and_scrubbed_env() {
+    let _spawn_guard = SPAWN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = scratch_dir("env");
     let script = write_file(
         &dir,
@@ -337,9 +341,9 @@ fn run_version_passes_args_and_scrubbed_env() {
     assert_eq!(version, "-v|dumb|unset|1");
 }
 
-#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_gives_the_child_null_stdin() {
+    let _spawn_guard = SPAWN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = scratch_dir("stdin");
     let script = write_file(&dir, "tool", "#!/bin/sh\ncat\necho done\n", 0o755);
     let env = ProcEnv::from_parts("/usr/bin:/bin".to_string(), &[], PathBuf::from("/h"));
@@ -351,6 +355,7 @@ fn run_version_gives_the_child_null_stdin() {
 
 #[test]
 fn run_version_reports_missing_binary() {
+    let _spawn_guard = SPAWN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = scratch_dir("missing");
     let env = ProcEnv::from_parts("/usr/bin:/bin".to_string(), &[], PathBuf::from("/h"));
     let err = env
@@ -359,9 +364,9 @@ fn run_version_reports_missing_binary() {
     assert_eq!(err.kind, ErrorKind::ProviderNotInstalled);
 }
 
-#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_reports_non_zero_exit() {
+    let _spawn_guard = SPAWN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = scratch_dir("fail");
     let script = write_file(&dir, "tool", "#!/bin/sh\necho oops\nexit 3\n", 0o755);
     let env = ProcEnv::from_parts("/usr/bin:/bin".to_string(), &[], PathBuf::from("/h"));
@@ -372,9 +377,9 @@ fn run_version_reports_non_zero_exit() {
     assert!(err.message.contains("exit status: 3"), "{}", err.message);
 }
 
-#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_returns_empty_string_for_silent_binary() {
+    let _spawn_guard = SPAWN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = scratch_dir("silent");
     let script = write_file(&dir, "tool", "#!/bin/sh\nexit 0\n", 0o755);
     let env = ProcEnv::from_parts("/usr/bin:/bin".to_string(), &[], PathBuf::from("/h"));
@@ -384,9 +389,9 @@ fn run_version_returns_empty_string_for_silent_binary() {
     assert_eq!(version, "");
 }
 
-#[cfg_attr(not(target_os = "macos"), ignore)]
 #[test]
 fn run_version_times_out_and_kills_process_group() {
+    let _spawn_guard = SPAWN_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = scratch_dir("hang");
     let script = write_file(&dir, "tool", "#!/bin/sh\nsleep 30 &\nsleep 30\n", 0o755);
     let env = ProcEnv::from_parts("/usr/bin:/bin".to_string(), &[], PathBuf::from("/h"));
