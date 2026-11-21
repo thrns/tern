@@ -108,6 +108,11 @@ fn hello_fixture_replays_as_a_full_turn() {
             AgentEvent::TextFinal {
                 text: "Hello, world".to_string(),
             },
+            AgentEvent::Usage {
+                input_tokens: Some(1),
+                output_tokens: Some(3),
+                cost_usd: Some(0.0),
+            },
             AgentEvent::Completed,
         ]
     );
