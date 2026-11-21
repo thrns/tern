@@ -11,7 +11,7 @@ bash scripts/capture-fixtures.sh --list
 bash scripts/capture-fixtures.sh
 ```
 
-`--list` prints every command without running it. A real run needs the CLIs on `PATH` and macOS Screen Recording permission for your terminal app (the script takes a screenshot to build a tiny PNG). A CLI that is not on `PATH` is skipped with a message. The script never passes a permission-bypass flag.
+`--list` prints every command without running it. A real run needs the CLIs on `PATH`. The image cases use the committed synthetic `tiny.png` (64x64), so no screenshot or Screen Recording permission is involved. A CLI that is not on `PATH` is skipped with a message. The script never passes a permission-bypass flag.
 
 ## Review before committing
 

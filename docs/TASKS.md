@@ -497,20 +497,20 @@ public enum ThumbnailLoader { public static func thumbnail(at url: URL, maxPixel
 ## T-024 Codex adapter
 - **Model:** SONNET (unverified flags to confirm)
 - **Goal:** Implement Arch 8.5.
-- **Depends on:** T-019, T-016 (hard: the unverified flags are decided by the fixtures)
-- **Files:** `crates/tern-core/src/providers/codex.rs`; register in the registry; test `test/rust/tests/provider_codex.rs`; update `docs/RESEARCH.md` rows for resume placement and `-c` MCP override using the fixtures from T-016.
-- **Details:** command per Arch 8.5; resume placement and `-c` support decided by the T-016 fixtures. If `mcp_override` fixture shows an error, set `mcp_injection = McpInjection::None` and omit the `-c` args. `system prompt` is prepended inside `<tern_context>` on first turns only. Images via `-i` with comma-joined absolute attachment paths. Capabilities: images `Native`, resume true, streaming false, stdin true.
-- **Edge cases:** `turn.failed` without message; multiple `agent_message` items (last wins); `error` events mid-stream followed by success (emit `Warning`, not `Failed`, unless the turn fails).
+- **Depends on:** T-019, T-016
+- **Files:** `crates/tern-core/src/providers/codex.rs`; register in the registry; test `test/rust/tests/provider_codex.rs`.
+- **Details:** command per Arch 8.5: flags before `resume`, `-i` for images and the `-c mcp_servers.tern.*` overrides are already decided there (VERIFIED by the T-016 fixtures); whether the server starts is settled in T-036, so keep `mcp_injection = McpInjection::ConfigOverride` until then. Event mapping follows the Arch 8.5 table exactly: `error` stores `last_error` and emits nothing, `turn.failed` emits `Failed` from `error.message` with `last_error` as fallback, at most one `Failed` per turn, `item.completed` with `item.type == "error"` emits `Warning`. Tool item types are unverified (no fixture has them), so test them with hand-written lines only and say so in the test names. `system prompt` is prepended inside `<tern_context>` on first turns only. Images via `-i` with comma-joined absolute attachment paths. Capabilities: images `Native`, resume true, streaming false, stdin true.
+- **Edge cases:** `turn.failed` without `error.message` (use `last_error`); `error` and `turn.failed` in one turn (one `Failed`); multiple `agent_message` items (last wins); `item.completed` error items followed by success (`Warning` only).
 - **Acceptance:** all codex fixtures map to expected sequences; command snapshot tests for read-only, allow-edits, resume, image.
 - **Test:** `cargo test -p tern-tests --test provider_codex`.
 
 ## T-025 Antigravity adapter
 - **Model:** SONNET (unverified event fields)
 - **Goal:** Implement Arch 8.6.
-- **Depends on:** T-019, T-016 (hard: delta field names come from the fixtures)
-- **Files:** `crates/tern-core/src/providers/agy.rs`; registry; test `test/rust/tests/provider_agy.rs`; update `docs/RESEARCH.md` for delta field name, image reading, workspace MCP loading.
-- **Details:** command per Arch 8.6; prompt passed as one argv element after `-p`; system context prepended on first turns. `step_update` text delta field taken from fixtures; if fixtures show no deltas, set `streaming_text = false` and rely on `result.response`. `ImageSupport` set to `ViaPath` if the `image` fixture shows a correct description, else `Unverified`.
-- **Edge cases:** `result.status` values other than `SUCCESS`; stderr soft-deny notices (emit `Warning { "agy denied a tool that needs approval" }` when stderr contains "denied" and exit code is 0); missing `conversation_id`.
+- **Depends on:** T-019, T-016
+- **Files:** `crates/tern-core/src/providers/agy.rs`; registry; test `test/rust/tests/provider_agy.rs`; one extra fixture `test/fixtures/providers/agy/sandbox.jsonl` (with its `.stderr.txt` and `.exit.txt`) and its capture case in `scripts/capture-fixtures.sh`; update `docs/RESEARCH.md` for `--sandbox` and `--add-dir`.
+- **Details:** command per Arch 8.6; prompt passed as one argv element after `-p`; system context prepended on first turns. Event mapping follows the Arch 8.6 table exactly: lines are keyed by top-level `event`, deltas come from `step_update.text_delta` on `agent_response` steps, tool steps finish on `DONE` or `ERROR`, `result` handling includes the `denied_actions` warning. `streaming_text = true`. `ImageSupport::ViaPath` (VERIFIED). Capture one extra fixture with both `--sandbox` and `--add-dir <dir>` to confirm that agy accepts them; if it rejects either, stop and report instead of changing Arch 8.6.
+- **Edge cases:** `result.status` values other than `SUCCESS`; empty `response` with `denied_actions` (Warning then `Completed`, no `TextFinal`); `step_update` with `state == "ERROR"`; the final `DONE` delta `"\n"` (a non-empty delta, so it is emitted as `TextDelta`); missing `conversation_id`.
 - **Acceptance:** fixtures map correctly; command snapshot tests.
 - **Test:** `cargo test -p tern-tests --test provider_agy`.
 

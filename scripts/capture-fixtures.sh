@@ -60,7 +60,7 @@ run_case() {
     mkdir -p "$dir"
     local status=0
     if [ -n "$input" ]; then
-        (cd "$WORK" && "$@") <<<"$input" >"$dir/$name.jsonl" 2>"$dir/$name.stderr.txt" || status=$?
+        printf '%s' "$input" | (cd "$WORK" && "$@") >"$dir/$name.jsonl" 2>"$dir/$name.stderr.txt" || status=$?
     else
         (cd "$WORK" && "$@") </dev/null >"$dir/$name.jsonl" 2>"$dir/$name.stderr.txt" || status=$?
     fi
@@ -101,12 +101,7 @@ record_version() {
 
 prepare_inputs() {
     head -c 1024 /dev/zero | tr '\0' 'a' >"$WORK/note.txt"
-    if ! screencapture -x -m "$WORK/full.png"; then
-        printf 'screencapture failed; grant Screen Recording to your terminal app\n' >&2
-        exit 1
-    fi
-    sips -Z 200 "$WORK/full.png" --out "$WORK/tiny.png" >/dev/null
-    rm -f "$WORK/full.png"
+    cp "$OUT_ROOT/tiny.png" "$WORK/tiny.png"
 }
 
 write_agy_mcp_config() {
@@ -121,16 +116,16 @@ write_agy_mcp_config() {
 capture_claude() {
     local sid
     record_version claude
-    run_case claude text "" claude -p "${CLAUDE_FLAGS[@]}" "$PROMPT"
+    run_case claude text "$PROMPT" claude -p "${CLAUDE_FLAGS[@]}"
     sid=$(session_from "$OUT_ROOT/claude/text.jsonl" session_id '<session_id>')
     if [ -n "$sid" ]; then
-        run_case claude resume "" claude -p --resume "$sid" "${CLAUDE_FLAGS[@]}" "$RESUME_PROMPT"
+        run_case claude resume "$RESUME_PROMPT" claude -p --resume "$sid" "${CLAUDE_FLAGS[@]}"
     else
         skip_case claude resume "no session_id found in text.jsonl"
     fi
-    run_case claude image "" claude -p "${CLAUDE_FLAGS[@]}" "Describe ./tiny.png in five words. Use the Read tool."
-    run_case claude denied "" claude -p "${CLAUDE_FLAGS[@]}" "Create a file named x.txt"
-    run_case claude error "" claude -p --model does-not-exist "${CLAUDE_FLAGS[@]}" "$PROMPT"
+    run_case claude image "Describe ./tiny.png in five words. Use the Read tool." claude -p "${CLAUDE_FLAGS[@]}"
+    run_case claude denied "Create a file named x.txt" claude -p "${CLAUDE_FLAGS[@]}"
+    run_case claude error "$PROMPT" claude -p --model does-not-exist "${CLAUDE_FLAGS[@]}"
 }
 
 capture_codex_resume() {
