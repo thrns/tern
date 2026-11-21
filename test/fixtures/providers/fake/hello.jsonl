@@ -1,0 +1,5 @@
+{"type":"system","subtype":"init","session_id":"fake-session-1"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":", "}}}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"world"}}}
+{"type":"result","subtype":"success","is_error":false,"result":"Hello, world","session_id":"fake-session-1","usage":{"input_tokens":1,"output_tokens":3},"total_cost_usd":0}
