@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"01a1fd1e-857c-70d1-a1ed-26537114d90f"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `does-not-exist` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"error","message":"The 'does-not-exist' model is not supported when using Codex with a ChatGPT account."}
+{"type":"turn.failed","error":{"message":"The 'does-not-exist' model is not supported when using Codex with a ChatGPT account."}}
