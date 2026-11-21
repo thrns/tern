@@ -19,6 +19,7 @@ Sources: https://code.claude.com/docs/en/headless , https://code.claude.com/docs
 | `system/api_retry` events on retryable API errors | VERIFIED |
 | `--resume <id>` / `-r`, `--continue`, `--session-id <uuid>`, `--no-session-persistence` | VERIFIED |
 | `--allowedTools`, `--disallowedTools`, `--tools "Read,Glob,Grep"` restricts built-in tools; `--tools` does not affect MCP tools | VERIFIED |
+| `--tools`, `--allowedTools` and `--disallowedTools` take multiple values and swallow trailing positional arguments; pass the prompt via stdin | VERIFIED 2026-11-21, claude 2.1.289 |
 | On macOS the default `--tools` set leaves out Glob and Grep; naming them explicitly enables them | First half VERIFIED, second half UNVERIFIED (T-019) |
 | `--permission-mode` values: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`, `manual` | VERIFIED |
 | In `dontAsk`, reads in working dirs and the read-only command set still run; everything else needing approval is denied | VERIFIED |
