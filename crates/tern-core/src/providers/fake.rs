@@ -1,11 +1,10 @@
-use super::runner::classify_failure;
+use super::claude::ClaudeParser;
 use super::{
-    AgentEvent, Capabilities, CommandSpec, Detection, EventParser, ExitInfo, FailureKind,
-    ImageSupport, McpInjection, Provider, ProviderId, TurnContext, TurnRequest,
+    Capabilities, CommandSpec, Detection, EventParser, ImageSupport, McpInjection, Provider,
+    ProviderId, TurnContext, TurnRequest,
 };
 use crate::error::{CoreError, ErrorKind};
 use crate::procenv::ProcEnv;
-use serde_json::Value;
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
@@ -65,7 +64,7 @@ impl Provider for FakeProvider {
     }
 
     fn new_parser(&self) -> Box<dyn EventParser> {
-        Box::new(FakeParser::default())
+        Box::new(ClaudeParser::default())
     }
 }
 
@@ -75,64 +74,4 @@ fn required_env(ctx: &TurnContext, key: &str) -> Result<OsString, CoreError> {
         .find(|(name, _)| name.as_os_str() == OsStr::new(key))
         .map(|(_, value)| value.clone())
         .ok_or_else(|| CoreError::new(ErrorKind::Config, format!("{key} is not set")))
-}
-
-#[derive(Default)]
-struct FakeParser {
-    terminal: bool,
-}
-
-impl EventParser for FakeParser {
-    fn parse_line(&mut self, line: &str) -> Vec<AgentEvent> {
-        let Ok(value) = serde_json::from_str::<Value>(line) else {
-            return Vec::new();
-        };
-        match value["type"].as_str() {
-            Some("system") if value["subtype"] == "init" => value["session_id"]
-                .as_str()
-                .map(|session_id| {
-                    vec![AgentEvent::SessionStarted {
-                        session_id: session_id.to_string(),
-                    }]
-                })
-                .unwrap_or_default(),
-            Some("stream_event") if value["event"]["delta"]["type"] == "text_delta" => {
-                value["event"]["delta"]["text"]
-                    .as_str()
-                    .map(|text| {
-                        vec![AgentEvent::TextDelta {
-                            text: text.to_string(),
-                        }]
-                    })
-                    .unwrap_or_default()
-            }
-            Some("result") => self.result_events(&value),
-            _ => Vec::new(),
-        }
-    }
-
-    fn finish(&mut self, exit: &ExitInfo, stderr_tail: &str) -> Vec<AgentEvent> {
-        if self.terminal {
-            return Vec::new();
-        }
-        vec![classify_failure(exit, stderr_tail, None)]
-    }
-}
-
-impl FakeParser {
-    fn result_events(&mut self, value: &Value) -> Vec<AgentEvent> {
-        self.terminal = true;
-        let result = value["result"].as_str().unwrap_or_default().to_string();
-        if value["is_error"] == true {
-            vec![AgentEvent::Failed {
-                kind: FailureKind::Unknown,
-                message: result,
-            }]
-        } else {
-            vec![
-                AgentEvent::TextFinal { text: result },
-                AgentEvent::Completed,
-            ]
-        }
-    }
 }

@@ -19,7 +19,8 @@ Sources: https://code.claude.com/docs/en/headless , https://code.claude.com/docs
 | `system/api_retry` events on retryable API errors | VERIFIED |
 | `--resume <id>` / `-r`, `--continue`, `--session-id <uuid>`, `--no-session-persistence` | VERIFIED |
 | `--allowedTools`, `--disallowedTools`, `--tools "Read,Glob,Grep"` restricts built-in tools; `--tools` does not affect MCP tools | VERIFIED |
-| On macOS the default `--tools` set leaves out Glob and Grep; naming them explicitly enables them | First half VERIFIED, second half UNVERIFIED (T-019) |
+| On macOS the default `--tools` set leaves out Glob and Grep; naming them explicitly enables them | VERIFIED 2026-11-21 against claude 2.1.289 (T-019): `system/init` `tools` was `[Glob, Grep, Read]` with `--tools Read,Glob,Grep`, `[Read]` with `--tools Read`, and a default list with no Glob or Grep without `--tools` |
+| An unauthenticated turn still emits `system/init`, then an `assistant` line with top-level `error: "authentication_failed"`, then `result` with `is_error: true`, a string `result` and `total_cost_usd: 0`; `claude auth status` printed `loggedIn: false` and exited 1 (the turn's own exit code was not captured) | VERIFIED 2026-11-21 against claude 2.1.289 (OAuth session expired on the capture machine, so no successful `text` turn was recorded; fixtures stay with T-016) |
 | `--permission-mode` values: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`, `manual` | VERIFIED |
 | In `dontAsk`, reads in working dirs and the read-only command set still run; everything else needing approval is denied | VERIFIED |
 | `--permission-prompts none` exists from v2.1.259 | VERIFIED |
