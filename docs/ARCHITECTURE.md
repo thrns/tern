@@ -574,18 +574,19 @@ codex exec --json
   --sandbox read-only
   --skip-git-repo-check
   -C <workspace>
-  -c 'mcp_servers.tern.command="<mcp_server_path>"'          (UNVERIFIED: dotted -c override for a new table)
-  -c 'mcp_servers.tern.args=["--home","<home>"]'             (UNVERIFIED)
+  -c 'mcp_servers.tern.command="<mcp_server_path>"'
+  -c 'mcp_servers.tern.args=["--home","<home>"]'
   [-m <model>]
   [-i <img1>,<img2>]
   -
 stdin = prompt text
 ```
-Resume: `codex exec --json <same flags> resume <thread_id> -` (UNVERIFIED: whether global flags must precede or follow `resume`; T-020 verifies and records).
+Resume: `codex exec --json <all other flags> resume <thread_id> -`, with the flags before `resume` (VERIFIED 2026-11-21, codex-cli 0.166.0, `test/fixtures/providers/codex/resume.variant.txt`).
+`-i` image attachment: VERIFIED 2026-11-21 for one file (`codex/image.jsonl`). `-c mcp_servers.tern.*` overrides: accepted by the CLI (VERIFIED, `codex/mcp_override.*`); whether the server actually starts is settled in T-036.
 Allow-edits: `--sandbox workspace-write`, `-C <work_dir>`.
 Never use `--full-auto` (deprecated or removed) or `danger-full-access`.
 
-Fallback if `-c` table injection fails verification: capability `mcp_injection = McpInjection::None` for per-turn use, and the UI tells the user to run "Install into my CLIs" for Codex (Section 9.5).
+Fallback if T-036 shows that `-c` table injection does not start the server: capability `mcp_injection = McpInjection::None` for per-turn use, and the UI tells the user to run "Install into my CLIs" for Codex (Section 9.5).
 
 JSONL mapping:
 | Line | Event |
@@ -593,9 +594,13 @@ JSONL mapping:
 | `type=="thread.started"` | `SessionStarted { thread_id }` |
 | `type=="item.started"` and item type is a tool or command (`command_execution`, `mcp_tool_call`, `web_search`, `file_change`) | `Tool { name: item.type or tool name, detail, finished: false }` |
 | `type=="item.completed"` and `item.type=="agent_message"` | `TextFinal { item.text }` (last one wins) |
+| `type=="item.completed"` and `item.type=="error"` | `Warning { item.message }`; never treated as a tool |
 | `type=="item.completed"` other tool items | `Tool { ..., finished: true }` |
 | `type=="turn.completed"` | `Usage { usage.input_tokens, usage.output_tokens }`, then `Completed` |
-| `type=="turn.failed"` or `type=="error"` | `Failed` per 8.2 using the message field |
+| `type=="error"` | store `message` as `last_error`; emit nothing |
+| `type=="turn.failed"` | `Failed` per 8.2 using `error.message`, falling back to `last_error`; the parser keeps a flag so at most one `Failed` is emitted per turn |
+
+The tool item types and their `item.started` and `item.completed` shapes are still unverified: no recorded fixture contains a tool item (`codex/*.jsonl` only has `agent_message` and `error` items). The existing tool rows stay as written until a fixture covers them.
 
 Codex has no token deltas in exec JSON (`streaming_text = false`); the UI shows a working indicator plus tool activity until `TextFinal`.
 Detection: `codex --version`. Login: `codex login status` (UNVERIFIED; if it fails, `logged_in = None`).
@@ -613,6 +618,7 @@ agy -p "<prompt>"
   [--conversation <conversation_id>]
 cwd = <workspace>   (contains .agents/mcp_config.json)
 ```
+`--sandbox` and `--add-dir` are not yet exercised by the recorded fixtures (`agy/*.jsonl` were captured without them). T-025 must capture one extra fixture with both flags to confirm that they are accepted.
 Read-only rationale (verified): in headless mode, tool actions needing approval that cannot be obtained are soft-denied; the run continues and exits 0, with a notice on stderr. Tern never passes `--dangerously-skip-permissions`. `--sandbox` adds OS containment where available.
 Allow-edits: add `--mode accept-edits`, `cwd = work_dir`, keep `--sandbox`. Tern never writes `.agents/mcp_config.json` into the user's work dir, so in this mode the Tern MCP tools are available to agy only if the user installed them globally (Section 9.5). The ask view shows this.
 MCP workspace file `<workspace>/.agents/mcp_config.json`:
@@ -620,15 +626,16 @@ MCP workspace file `<workspace>/.agents/mcp_config.json`:
 {"mcpServers":{"tern":{"command":"<mcp_server_path>","args":["--home","<home>"]}}}
 ```
 (UNVERIFIED: whether print mode loads workspace config for a folder that was never approved as a project. T-021 verifies. Fallback: global install.)
-Images: `ImageSupport::Unverified`. Prompt gets `Attached image: <absolute path>`. The UI warns once per conversation that agy image reading is unverified.
+Images: `ImageSupport::ViaPath` (VERIFIED 2026-11-21, agy 1.5.14, `agy/image.jsonl`). Prompt gets `Attached image: <absolute path>`.
 
-stream-json mapping:
+stream-json lines are keyed by a top-level `event` field (`init`, `step_update`, `result`), and the payload is nested under a key with the same name, for example `step_update.step_type`, `step_update.state`, `step_update.text_delta`, `result.status`. Parser rule 2 applies to unknown `event` values.
 | Line | Event |
 |---|---|
-| `type=="init"` | nothing (record config) |
-| `type=="step_update"`, step type `agent_response`, text delta present | `TextDelta` (exact field name UNVERIFIED; take it from fixtures) |
-| `type=="step_update"`, step type `tool` | `Tool { name, detail, finished: state=="DONE" }` |
-| `type=="result"` | `SessionStarted { conversation_id }` (if not yet sent), `TextFinal { response }`, `Usage { usage.input_tokens, usage.output_tokens }`; `status=="SUCCESS"` gives `Completed`; `ERROR`, `CANCELED`, `INTERRUPTED`, `INVALID` give `Failed` |
+| `event=="init"` | ignored |
+| `event=="step_update"`, `step_update.step_type=="agent_response"` and non-empty `step_update.text_delta` | `TextDelta { text_delta }` |
+| `event=="step_update"`, `step_update.step_type=="tool"` | `Tool { name: tool_name, detail, finished: state is DONE or ERROR }`; when `state` is `ERROR` also `Warning { "agy tool failed or was denied: <name>" }` |
+| `event=="step_update"`, step type `system_message`, `user_input` or `checkpoint` | ignored |
+| `event=="result"` | `SessionStarted { result.conversation_id }` (if not yet sent); `TextFinal { response }` only if `response` is non-empty; `Usage { usage.input_tokens, usage.output_tokens }`; `status=="SUCCESS"` gives `Completed`, preceded by `Warning { "agy skipped N action(s) that need approval" }` when `denied_actions` is non-empty; `ERROR`, `CANCELED`, `INTERRUPTED`, `INVALID` give `Failed` |
 
 Detection: `agy --version`. Login: no verified command; `logged_in = None`.
 

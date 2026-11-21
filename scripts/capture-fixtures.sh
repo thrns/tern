@@ -101,12 +101,7 @@ record_version() {
 
 prepare_inputs() {
     head -c 1024 /dev/zero | tr '\0' 'a' >"$WORK/note.txt"
-    if ! screencapture -x -m "$WORK/full.png"; then
-        printf 'screencapture failed; grant Screen Recording to your terminal app\n' >&2
-        exit 1
-    fi
-    sips -Z 200 "$WORK/full.png" --out "$WORK/tiny.png" >/dev/null
-    rm -f "$WORK/full.png"
+    cp "$OUT_ROOT/tiny.png" "$WORK/tiny.png"
 }
 
 write_agy_mcp_config() {
